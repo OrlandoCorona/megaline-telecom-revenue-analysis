@@ -1,71 +1,49 @@
 # Telecom Plan Revenue Analysis
 
 Análisis comparativo de los planes de prepago **Surf** y **Ultimate** de un
-operador de telecomunicaciones, orientado a identificar cuál genera más
-ingresos y dónde conviene concentrar la inversión publicitaria.
+operador de telecomunicaciones, para determinar cuál genera más ingresos y
+orientar la inversión publicitaria.
 
 ## Objetivo del negocio
 
-El equipo comercial necesita decidir cómo repartir el presupuesto de
-publicidad entre los dos planes. La pregunta clave es:
+El equipo comercial necesita decidir qué plan priorizar en su presupuesto de
+publicidad. Ambos planes difieren mucho en precio y recursos incluidos:
 
-> ¿Qué plan deja **más ingresos por usuario** y existe una diferencia
-> estadísticamente significativa entre ambos?
+| | Surf | Ultimate |
+|---|---|---|
+| Cuota mensual | \$20 | \$70 |
+| Minutos incluidos | 500 | 3 000 |
+| Mensajes incluidos | 50 | 1 000 |
+| Datos incluidos | 15 GB | 30 GB |
+| Minuto extra | \$0.03 | \$0.01 |
+| Mensaje extra | \$0.03 | \$0.01 |
+| GB extra | \$10.00 | \$7.00 |
 
-A partir del comportamiento de 500 clientes (llamadas, mensajes y consumo de
-datos) se calcula el ingreso mensual real de cada usuario —cuota fija más
-cargos por excedente— y se contrasta una hipótesis sobre la diferencia de
-ingresos.
+> **Hipótesis de partida:** Surf podría generar ingresos competitivos por
+> cargos de excedente, pese a su cuota base más baja.
 
 ## Tecnologías
 
-- Python 3.11
-- pandas / NumPy — limpieza y agregación de datos
-- SciPy — prueba de hipótesis (t de Welch)
-- Matplotlib / Seaborn — visualización
-- Jupyter Notebook
+Python 3.11 · pandas · NumPy · SciPy · Matplotlib · Seaborn · Jupyter Notebook
 
 ## Dataset
 
-Cinco tablas con el uso mensual del operador (aprox. diciembre 2018): usuarios,
-llamadas, mensajes, sesiones de internet y condiciones de los planes. El
-detalle de cada archivo está en [`datasets/README.md`](datasets/README.md).
+500 clientes observados durante 2018, en cinco tablas relacionales:
 
-## Proceso de análisis
-
-1. **Carga y exploración** de las cinco tablas.
-2. **Limpieza:** conversión de fechas a `datetime`, tipos de datos correctos,
-   filtrado de registros en cero y *capping* de valores atípicos al
-   percentil 99.
-3. **Enriquecimiento:** columnas auxiliares (`is_active`, `is_ny_nj`, `month`,
-   `gb_per_month_included`).
-4. **Agregación por usuario/mes:** llamadas, minutos, mensajes y datos.
-5. **Cálculo de ingresos:** cuota mensual + excedentes de minutos, mensajes y
-   gigabytes según las condiciones de cada plan.
-6. **Análisis comparativo** de minutos, mensajes y datos por plan.
-7. **Pruebas de hipótesis:** ingresos Surf vs Ultimate y NY-NJ vs resto.
-
-## Resultados
-
-- Los usuarios de **Ultimate** consumen más minutos, mensajes y datos por sus
-  límites más altos; **Surf** genera ingresos extra vía excedentes (sobre todo
-  de datos).
-- La prueba t de Welch muestra que los ingresos promedio de ambos planes
-  **difieren de forma significativa** (p-valor < 0.05).
-
-## Conclusiones
-
-**Ultimate** ofrece un ingreso medio más alto y estable, por lo que es el
-candidato natural para concentrar la inversión publicitaria. Conviene además
-vigilar a los usuarios de **Surf** con alto consumo de datos: son buenos
-candidatos a migrar a un plan superior.
+| Archivo | Descripción |
+|---|---|
+| `megaline_users.csv` | Perfiles de usuario (plan, ciudad, alta/baja). |
+| `megaline_calls.csv` | Registro de llamadas (usuario, fecha, duración). |
+| `megaline_messages.csv` | Registro de mensajes. |
+| `megaline_internet.csv` | Sesiones de datos (MB consumidos). |
+| `megaline_plans.csv` | Condiciones de tarifa de cada plan. |
 
 ## Estructura del proyecto
 
 ```
 telecom-plan-revenue-analysis/
 ├── Notebook/
-│   └── megaline_revenue_analysis.ipynb   # análisis exploratorio
+│   └── megaline_revenue_analysis.ipynb
 ├── datasets/                             # 5 CSV de uso del operador
 ├── telecom_plan_revenue_analysis.py      # análisis en formato script
 ├── requirements.txt
@@ -73,36 +51,89 @@ telecom-plan-revenue-analysis/
 └── README.md
 ```
 
+## Metodología
+
+**1. Limpieza (por tabla).** Conversión de fechas a `datetime`; nulos de
+`churn_date` preservados como usuarios activos; duración de llamadas redondeada
+al minuto superior (convención de facturación); filtrado de sesiones en cero;
+columnas auxiliares (`is_active`, `is_ny_nj`, `month`, `total_gb`).
+
+**2. Ingeniería de ingresos.** Una función `calculate_revenue()` calcula el
+ingreso mensual por usuario:
+
+```
+ingreso = cuota_mensual
+        + max(0, minutos_usados − minutos_incluidos) × tarifa_minuto
+        + max(0, mensajes_usados − mensajes_incluidos) × tarifa_mensaje
+        + max(0, ceil(gb_usados) − gb_incluidos) × tarifa_gb
+```
+
+Los datos usan `math.ceil()`: un GB parcial se factura como GB completo.
+
+**3. Análisis exploratorio.** Tendencias mensuales de uso por plan;
+estadística descriptiva (media, varianza, desviación); histogramas de ingresos.
+
+**4. Prueba de hipótesis.** Prueba t de Welch (`equal_var=False`), α = 0.05.
+
+## Resultados
+
+**Uso promedio mensual**
+
+| Métrica | Surf | Ultimate |
+|---|---|---|
+| Minutos usados | 427.5 | 429.0 |
+| Mensajes enviados | 31.2 | 37.6 |
+| Datos consumidos | 16.1 GB | 16.8 GB |
+
+Dato clave: ambos grupos consumen volúmenes casi idénticos, pero el límite de
+Surf es de **15 GB** y sus usuarios promedian **16.1 GB** — lo exceden de forma
+recurrente y disparan cargos de \$10/GB.
+
+**Ingresos**
+
+| Métrica | Surf | Ultimate |
+|---|---|---|
+| Ingreso medio mensual | \$60.33 | \$72.24 |
+| Desviación estándar | \$54.95 | \$11.13 |
+| Varianza | \$3 019.03 | \$123.80 |
+
+Ultimate genera ~\$12 más por usuario al mes; Surf tiene ~25× más varianza
+(ingreso impredecible por excedentes), mientras Ultimate es casi tarifa plana.
+
+**Prueba 1 — ingresos Surf vs Ultimate:** t = −8.23, p ≈ 3.51 × 10⁻¹⁶ →
+**se rechaza H₀**: los ingresos medios difieren de forma altamente significativa.
+
+**Prueba 2 — NY-NJ vs resto:** **no concluyente** — la muestra de NY-NJ es
+demasiado pequeña para un estadístico fiable (`SmallSampleWarning`).
+
+## Conclusiones
+
+1. **Ultimate debe ser la prioridad publicitaria:** ~20 % más de ingreso por
+   usuario (\$72.24 vs \$60.33) con ingreso estable y de baja varianza.
+2. **Surf no es deficitario:** los excedentes de datos (sus usuarios superan los
+   15 GB) compensan parcialmente la cuota baja, pero el ingreso es volátil.
+3. El comportamiento de uso es casi idéntico entre planes, lo que sugiere que
+   los usuarios de Surf están limitados por su plan y son candidatos a migrar a
+   Ultimate.
+
 ## Cómo ejecutar
 
 ```bash
-# 1. Clonar el repositorio
 git clone https://github.com/OrlandoCorona/telecom-plan-revenue-analysis.git
 cd telecom-plan-revenue-analysis
 
-# 2. Crear entorno virtual e instalar dependencias
 python -m venv venv
 source venv/bin/activate        # En Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-# 4. Abrir el notebook
 jupyter notebook Notebook/megaline_revenue_analysis.ipynb
 ```
 
 El mismo análisis está disponible como script en
 [`telecom_plan_revenue_analysis.py`](telecom_plan_revenue_analysis.py).
 
-## Capturas sugeridas
-
-Para enriquecer este README puedes añadir, en una carpeta `images/`:
-
-- Distribución de ingresos mensuales por plan (histograma).
-- Boxplot de minutos por plan.
-- Resultado de la prueba de hipótesis.
-
 ## Trabajo futuro
 
-- Segmentar a los usuarios por nivel de consumo (clustering) para diseñar
-  campañas más específicas.
+- Segmentar usuarios por nivel de consumo para campañas específicas.
 - Estimar el *churn* asociado a cada plan.
-- Automatizar la generación de un reporte mensual.
+- Automatizar un reporte mensual de ingresos.
