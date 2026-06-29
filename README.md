@@ -119,7 +119,7 @@ demasiado pequeña para un estadístico fiable (`SmallSampleWarning`).
 ## Cómo ejecutar
 
 ```bash
-git clone https://github.com/OrlandoCorona/telecom-plan-revenue-analysis.git
+git clone https://github.com/OrlandoCorona/megaline-telecom-revenue-analysis.git
 cd telecom-plan-revenue-analysis
 
 python -m venv venv
